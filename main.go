@@ -10,10 +10,12 @@ import (
 	"net/http"
 	"time"
 	"unsafe"
+	"flag"
 
 	"github.com/giorgisio/goav/avcodec"
 	"github.com/giorgisio/goav/avformat"
 	"github.com/giorgisio/goav/avutil"
+	"strconv"
 )
 
 const (
@@ -132,7 +134,13 @@ func resolveStream(roomId int) string {
 
 func main() {
 	log.Printf("start\n")
-	filename := resolveStream(27836)
+	flag.Parse()
+	roomId, err := strconv.ParseInt(flag.Arg(0), 10, 32)
+	if err != nil {
+		roomId = 156277
+	}
+
+	filename := resolveStream(int(roomId))
 	avformat.AvRegisterAll()
 	avformat.AvformatNetworkInit()
 	var formatContext *avformat.Context
