@@ -2,6 +2,7 @@ package main
 
 //#cgo pkg-config: libavutil
 //#include <libavutil/avutil.h>
+//#include <libavutil/channel_layout.h>
 //#include <libswresample/swresample.h>
 import "C"
 import (
@@ -23,6 +24,7 @@ import (
 	"github.com/giorgisio/goav/swresample"
 )
 
+const MAX_AUDIO_FRAME_SIZE = 192000
 
 type DouyuRoomInfo struct {
 	Error int `json:"error"`
@@ -128,6 +130,20 @@ func resolveStream(roomId int) string {
 	return liveUrl
 }
 
+func AvGetDefaultChannelLayout(channels int) int64 {
+	return int64(C.av_get_default_channel_layout(C.int(channels)))
+}
+
+type Frame C.struct_AVFrame
+
+func (p *Frame)Data() **uint8 {
+	return (**uint8)(unsafe.Pointer(&p.data[0]))
+}
+
+func (p *Frame)NbSamples() int {
+	return (int)(p.nb_samples)
+}
+
 func main() {
 	log.Printf("start\n")
 	flag.Parse()
@@ -192,28 +208,38 @@ func main() {
 
 	var packet *avcodec.Packet = new(avcodec.Packet)
 	packet.AvInitPacket()
-	frame := avutil.AvFrameAlloc()
-
-	log.Println("Frame:", frame)
+	utilFrame := avutil.AvFrameAlloc()
 
 	swrContext := swresample.SwrAlloc()
-	//swrContext.SwrAllocSetOpts(C.AV_CH_LAYOUT_STEREO, C.AV_SAMPLE_FMT_S16, )
+	swrContext.SwrAllocSetOpts(C.AV_CH_LAYOUT_STEREO, C.AV_SAMPLE_FMT_S16, 44100,
+		AvGetDefaultChannelLayout(codecContext.Channels()),
+		(swresample.AvSampleFormat)(codecContext.SampleFmt()), codecContext.SampleRate(), 0, 0)
+	swrContext.SwrInit()
 
 	index := 0
+	outBuffer := [MAX_AUDIO_FRAME_SIZE]uint8{}
+	outBufferArray := [...]*uint8{&outBuffer[0]}
 	for formatContext.AvReadFrame(packet) >= 0 {
+		log.Println("--------")
 		log.Println("Packet read:", packet)
 		log.Println("Packet StreamIndex:", packet.StreamIndex())
 		if packet.StreamIndex() == audioFrame {
 			log.Println("audioFrame")
 
+			codecFrame := (*avcodec.Frame)(unsafe.Pointer(utilFrame))
+
 			var gotFrame int
-			if codecContext.AvcodecDecodeAudio4((*avcodec.Frame)(unsafe.Pointer(frame)), &gotFrame, packet) < 0 {
+			if codecContext.AvcodecDecodeAudio4(codecFrame, &gotFrame, packet) < 0 {
 				log.Println("Error in decoding audio frame.")
 				return
 			}
 			if gotFrame > 0 {
 				log.Println("got")
 				log.Printf("index:%5d\t pts:%d\t packet size:%d\n", index, packet.Pts(), packet.Size())
+				frame := (*Frame)(unsafe.Pointer(codecFrame))
+				n := swrContext.SwrConvert(&outBufferArray[0], MAX_AUDIO_FRAME_SIZE, frame.Data(), frame.NbSamples())
+
+				log.Println("n: ", n, "bytes: ", 2 * 2 * n)
 
 				index++
 			} else {
