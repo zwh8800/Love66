@@ -22,6 +22,7 @@ import (
 	"github.com/giorgisio/goav/avutil"
 	"strconv"
 	"github.com/giorgisio/goav/swresample"
+	"os"
 )
 
 const MAX_AUDIO_FRAME_SIZE = 192000
@@ -133,6 +134,9 @@ func resolveStream(roomId int) string {
 func AvGetDefaultChannelLayout(channels int) int64 {
 	return int64(C.av_get_default_channel_layout(C.int(channels)))
 }
+func AvGetChannelLayoutNbChannels(channelLayout uint64) int {
+	return int(C.av_get_channel_layout_nb_channels(C.uint64_t(channelLayout)))
+}
 
 type Frame C.struct_AVFrame
 
@@ -144,12 +148,22 @@ func (p *Frame)NbSamples() int {
 	return (int)(p.nb_samples)
 }
 
+type AvSampleFormat C.enum_AVSampleFormat
+func AvSamplesGetBufferSize(lineSize *int, channels int, samples int, sampleFmt AvSampleFormat, align int) int {
+	return int(C.av_samples_get_buffer_size((*C.int)(unsafe.Pointer(lineSize)), C.int(channels), C.int(samples), C.enum_AVSampleFormat(sampleFmt), C.int(align)))
+}
+
 func main() {
 	log.Printf("start\n")
 	flag.Parse()
 	roomId, err := strconv.ParseInt(flag.Arg(0), 10, 32)
 	if err != nil {
 		roomId = 156277
+	}
+
+	pcmFile, err := os.OpenFile("./output.pcm", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	filename := resolveStream(int(roomId))
@@ -211,10 +225,12 @@ func main() {
 	utilFrame := avutil.AvFrameAlloc()
 
 	swrContext := swresample.SwrAlloc()
-	swrContext.SwrAllocSetOpts(C.AV_CH_LAYOUT_STEREO, C.AV_SAMPLE_FMT_S16, 44100,
+	swrContext.SwrAllocSetOpts(C.AV_CH_LAYOUT_STEREO, C.AV_SAMPLE_FMT_S16, 48000,
 		AvGetDefaultChannelLayout(codecContext.Channels()),
 		(swresample.AvSampleFormat)(codecContext.SampleFmt()), codecContext.SampleRate(), 0, 0)
 	swrContext.SwrInit()
+	outSize := AvSamplesGetBufferSize(nil, AvGetChannelLayoutNbChannels(C.AV_CH_LAYOUT_STEREO), codecContext.FrameSize(), C.AV_SAMPLE_FMT_S16, 1)
+	log.Println("outSize: ", outSize)
 
 	index := 0
 	outBuffer := [MAX_AUDIO_FRAME_SIZE]uint8{}
@@ -239,8 +255,14 @@ func main() {
 				frame := (*Frame)(unsafe.Pointer(codecFrame))
 				n := swrContext.SwrConvert(&outBufferArray[0], MAX_AUDIO_FRAME_SIZE, frame.Data(), frame.NbSamples())
 
-				log.Println("n: ", n, "bytes: ", 2 * 2 * n)
-
+				len := 2 * 2 * n
+				log.Println("n: ", n, "bytes: ", len)
+//				len = outSize
+//				log.Println("outSize: ", len);
+				_, err := pcmFile.Write(outBuffer[:len])
+				if err != nil {
+					log.Fatal(err)
+				}
 				index++
 			} else {
 				log.Println("finish")
