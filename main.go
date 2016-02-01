@@ -2,6 +2,7 @@ package main
 
 //#cgo pkg-config: libavutil
 //#include <libavutil/avutil.h>
+//#include <libswresample/swresample.h>
 import "C"
 import (
 	"crypto/md5"
@@ -19,6 +20,7 @@ import (
 	"github.com/giorgisio/goav/avformat"
 	"github.com/giorgisio/goav/avutil"
 	"strconv"
+	"github.com/giorgisio/goav/swresample"
 )
 
 
@@ -194,6 +196,10 @@ func main() {
 
 	log.Println("Frame:", frame)
 
+	swrContext := swresample.SwrAlloc()
+	//swrContext.SwrAllocSetOpts(C.AV_CH_LAYOUT_STEREO, C.AV_SAMPLE_FMT_S16, )
+
+	index := 0
 	for formatContext.AvReadFrame(packet) >= 0 {
 		log.Println("Packet read:", packet)
 		log.Println("Packet StreamIndex:", packet.StreamIndex())
@@ -207,10 +213,14 @@ func main() {
 			}
 			if gotFrame > 0 {
 				log.Println("got")
+				log.Printf("index:%5d\t pts:%d\t packet size:%d\n", index, packet.Pts(), packet.Size())
+
+				index++
 			} else {
 				log.Println("finish")
 			}
 		}
+		packet.AvFreePacket()
 	}
 
 }
