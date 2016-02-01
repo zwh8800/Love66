@@ -1,5 +1,8 @@
 package main
 
+//#cgo pkg-config: libavutil
+//#include <libavutil/avutil.h>
+import "C"
 import (
 	"crypto/md5"
 	"encoding/hex"
@@ -18,15 +21,6 @@ import (
 	"strconv"
 )
 
-const (
-	AVMEDIA_TYPE_UNKNOWN = iota - 1
-	AVMEDIA_TYPE_VIDEO
-	AVMEDIA_TYPE_AUDIO
-	AVMEDIA_TYPE_DATA
-	AVMEDIA_TYPE_SUBTITLE
-	AVMEDIA_TYPE_ATTACHMENT
-	AVMEDIA_TYPE_NB
-)
 
 type DouyuRoomInfo struct {
 	Error int `json:"error"`
@@ -115,7 +109,7 @@ func resolveStream(roomId int) string {
 	var douyuRoomInfo DouyuRoomInfo
 	err = json.Unmarshal(respBodyData, &douyuRoomInfo)
 	if err != nil {
-		log.Panic("json.Unmarshal error: ", err)
+		log.Panic("json.Unmarshal error: ", err, "主播可能未开播")
 	}
 
 	log.Println("room info: ", douyuRoomInfo)
@@ -165,9 +159,12 @@ func main() {
 	for i := 0; i < int(n); i++ {
 		log.Println("Stream Number:", i)
 		codec := formatContext.Streams(uint(i)).Codec()
-		codecContext = (*avcodec.CodecContext)(unsafe.Pointer(&codec))
-		if codecContext.CodecType() == AVMEDIA_TYPE_AUDIO {
+		codecContext = codec
+		log.Println("Stream CodecType:", codecContext.CodecType())
+		log.Println("AVMEDIA_TYPE_AUDIO: ", C.AVMEDIA_TYPE_AUDIO)
+		if codecContext.CodecType() == C.AVMEDIA_TYPE_AUDIO {
 			audioFrame = i
+			log.Println("audioFrame: ", audioFrame)
 			break
 		}
 	}
@@ -189,19 +186,27 @@ func main() {
 		log.Println("Error: Couldn't open codec.")
 		return
 	}
+	log.Println("audioCodec", audioCodec)
 
-	var packet *avcodec.Packet
+	var packet *avcodec.Packet = new(avcodec.Packet)
+	packet.AvInitPacket()
 	frame := avutil.AvFrameAlloc()
 
+	log.Println("Frame:", frame)
+
 	for formatContext.AvReadFrame(packet) >= 0 {
-		var gotFrame int
+		log.Println("Packet read:", packet)
+		log.Println("Packet StreamIndex:", packet.StreamIndex())
 		if packet.StreamIndex() == audioFrame {
+			log.Println("audioFrame")
+
+			var gotFrame int
 			if codecContext.AvcodecDecodeAudio4((*avcodec.Frame)(unsafe.Pointer(frame)), &gotFrame, packet) < 0 {
 				log.Println("Error in decoding audio frame.")
 				return
 			}
 			if gotFrame > 0 {
-
+				log.Println("got")
 			} else {
 				log.Println("finish")
 			}
