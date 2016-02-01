@@ -156,17 +156,16 @@ func main() {
 
 	formatContext.AvDumpFormat(0, filename, 0)
 
-	var codecContext *avcodec.Context
+	var codecContext *avcodec.CodecContext
 	n := formatContext.NbStreams()
 	log.Printf("number of streams: %d\n", n)
 
 	audioFrame := -1
-	s := formatContext.Streams()
 
 	for i := 0; i < int(n); i++ {
 		log.Println("Stream Number:", i)
-		codec := (*avformat.Stream)(unsafe.Pointer(uintptr(unsafe.Pointer(s)) + uintptr(i))).Codec()
-		codecContext = (*avcodec.Context)(unsafe.Pointer(&codec))
+		codec := formatContext.Streams(uint(i)).Codec()
+		codecContext = (*avcodec.CodecContext)(unsafe.Pointer(&codec))
 		if codecContext.CodecType() == AVMEDIA_TYPE_AUDIO {
 			audioFrame = i
 			break
