@@ -162,28 +162,24 @@ func (p *Frame) NbSamples() int {
 	return (int)(p.nb_samples)
 }
 
-var audioLen uint32
-var audioPos *uint8
-
 var audioBuffer bytes.Buffer
 
 //export fillAudio
 func fillAudio(uData *C.Uint8, stream *C.Uint8, len C.int) {
-	log.Println("audioLen = ", audioLen, "len = ", len)
+	log.Println("audioBuffer.Len() = ", audioBuffer.Len(), "len = ", len)
 
 	C.memset(unsafe.Pointer(stream), 0, C.size_t(len))
-	if audioLen == 0 {
+	length := uint32(len)
+	if audioBuffer.Len() < int(length) {
 		return
 	}
-	var length uint32 = uint32(len)
-	if length > audioLen {
-		length = audioLen
+
+	audioData := make([]byte, int(length))
+	if _, err := audioBuffer.Read(audioData); err != nil {
+		log.Fatal(err)
 	}
 
-	sdl.MixAudio((*uint8)(stream), audioPos, length, sdl.MIX_MAXVOLUME)
-	audioLen -= length
-
-	audioPos = (*uint8)(unsafe.Pointer(uintptr(unsafe.Pointer(audioPos)) + uintptr(length)))
+	sdl.MixAudio((*uint8)(stream), &audioData[0], length, sdl.MIX_MAXVOLUME)
 }
 
 func main() {
@@ -290,6 +286,10 @@ func main() {
 	C.set_callback((*C.SDL_AudioSpec)(unsafe.Pointer(&wanted)))
 	log.Printf("var wanted sdl.AudioSpec = %#v\n", wanted)
 
+	audioBuffer.Grow(codecContext.FrameSize() * 2 * 2 * 4)
+	audioBufferCap := audioBuffer.Cap()
+	log.Printf("audioBuffer len: %d, cap: %d\n", audioBuffer.Len(), audioBuffer.Cap())
+
 	if err := sdl.OpenAudio(&wanted, nil); err != nil {
 		log.Fatal("sdl.OpenAudio(&wanted, nil): ", err)
 	}
@@ -320,16 +320,16 @@ func main() {
 				len := 2 * 2 * n
 				log.Println("n: ", n, "bytes: ", len)
 
-				for audioLen > 0 {
+				for audioBuffer.Len() >= audioBufferCap {
 					sdl.Delay(1)
 				}
-				audioPos = &outBuffer[0]
-				audioLen = uint32(len)
+				if _, err := audioBuffer.Write(outBuffer[:len]); err != nil {
+					log.Fatal(err)
+				}
 
 				sdl.PauseAudio(false)
 
-				_, err := pcmFile.Write(outBuffer[:len])
-				if err != nil {
+				if _, err := pcmFile.Write(outBuffer[:len]); err != nil {
 					log.Fatal(err)
 				}
 				index++
