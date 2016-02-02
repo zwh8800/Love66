@@ -13,7 +13,7 @@ extern void fillAudio(Uint8 *udata, Uint8 *stream, int len);
 static void set_callback(SDL_AudioSpec* wanted) {
 	wanted->callback = (SDL_AudioCallback)fillAudio;
 }
- */
+*/
 import "C"
 import (
 	"crypto/md5"
@@ -31,6 +31,7 @@ import (
 	"os"
 	"strconv"
 
+	"bytes"
 	"github.com/giorgisio/goav/avcodec"
 	"github.com/giorgisio/goav/avformat"
 	"github.com/giorgisio/goav/avutil"
@@ -164,12 +165,14 @@ func (p *Frame) NbSamples() int {
 var audioLen uint32
 var audioPos *uint8
 
+var audioBuffer bytes.Buffer
+
 //export fillAudio
 func fillAudio(uData *C.Uint8, stream *C.Uint8, len C.int) {
 	log.Println("audioLen = ", audioLen, "len = ", len)
 
 	C.memset(unsafe.Pointer(stream), 0, C.size_t(len))
-	if (audioLen == 0) {
+	if audioLen == 0 {
 		return
 	}
 	var length uint32 = uint32(len)
@@ -323,7 +326,7 @@ func main() {
 				audioPos = &outBuffer[0]
 				audioLen = uint32(len)
 
-				sdl.PauseAudio(false);
+				sdl.PauseAudio(false)
 
 				_, err := pcmFile.Write(outBuffer[:len])
 				if err != nil {
