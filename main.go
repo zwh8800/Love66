@@ -9,21 +9,21 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"time"
 	"unsafe"
-	"flag"
 
 	"github.com/giorgisio/goav/avcodec"
 	"github.com/giorgisio/goav/avformat"
 	"github.com/giorgisio/goav/avutil"
-	"strconv"
 	"github.com/giorgisio/goav/swresample"
-	"os"
 	"io"
+	"os"
+	"strconv"
 )
 
 const MAX_AUDIO_FRAME_SIZE = 192000
@@ -141,11 +141,11 @@ func AvGetChannelLayoutNbChannels(channelLayout uint64) int {
 
 type Frame C.struct_AVFrame
 
-func (p *Frame)Data() **uint8 {
+func (p *Frame) Data() **uint8 {
 	return (**uint8)(unsafe.Pointer(&p.data[0]))
 }
 
-func (p *Frame)NbSamples() int {
+func (p *Frame) NbSamples() int {
 	return (int)(p.nb_samples)
 }
 
@@ -264,7 +264,7 @@ func main() {
 
 				len := 2 * 2 * n
 				log.Println("n: ", n, "bytes: ", len)
-				
+
 				_, err := pcmFile.Write(outBuffer[:len])
 				if err != nil {
 					log.Fatal(err)
