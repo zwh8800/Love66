@@ -194,7 +194,7 @@ func main() {
 
 	pcmFileName := flag.Arg(1)
 	if pcmFileName == "" {
-		pcmFileName = "./output.pcm"
+		pcmFileName = "/dev/null"
 		pcmFile, err = os.OpenFile(pcmFileName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 		if err != nil {
 			log.Fatal(err)
