@@ -17,13 +17,14 @@ import (
 	"time"
 	"unsafe"
 
+	"io"
+	"os"
+	"strconv"
+
 	"github.com/giorgisio/goav/avcodec"
 	"github.com/giorgisio/goav/avformat"
 	"github.com/giorgisio/goav/avutil"
 	"github.com/giorgisio/goav/swresample"
-	"io"
-	"os"
-	"strconv"
 )
 
 const MAX_AUDIO_FRAME_SIZE = 192000
