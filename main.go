@@ -148,9 +148,6 @@ func resolveStream(roomId int) string {
 func AvGetDefaultChannelLayout(channels int) int64 {
 	return int64(C.av_get_default_channel_layout(C.int(channels)))
 }
-func AvGetChannelLayoutNbChannels(channelLayout uint64) int {
-	return int(C.av_get_channel_layout_nb_channels(C.uint64_t(channelLayout)))
-}
 
 type Frame C.struct_AVFrame
 
@@ -190,36 +187,34 @@ func main() {
 		roomId = 156277
 	}
 
-	var pcmFile io.Writer
+	var pcmFile io.WriteCloser
 
 	pcmFileName := flag.Arg(1)
-	if pcmFileName == "" {
-		pcmFileName = "/dev/null"
-		pcmFile, err = os.OpenFile(pcmFileName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
-		if err != nil {
-			log.Fatal(err)
-		}
-	} else if pcmFileName == "-" {
+	if pcmFileName == "-" {
 		pcmFile = os.Stdout
 	} else {
+		if pcmFileName == "" {
+			pcmFileName = "/dev/null"
+		}
 		pcmFile, err = os.OpenFile(pcmFileName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 		if err != nil {
 			log.Fatal(err)
 		}
+		defer pcmFile.Close()
 	}
 
 	filename := resolveStream(int(roomId))
 	avformat.AvRegisterAll()
 	avformat.AvformatNetworkInit()
+	defer avformat.AvformatNetworkDeinit()
 	var formatContext *avformat.Context
 
 	if avformat.AvformatOpenInput(&formatContext, filename, nil, nil) != 0 {
-		log.Println("Error: Couldn't open file.")
-		return
+		log.Fatal("Error: Couldn't open file.")
 	}
+	defer formatContext.AvformatCloseInput()
 	if formatContext.AvformatFindStreamInfo(nil) < 0 {
-		log.Println("Error: Couldn't find stream information.")
-		return
+		log.Fatal("Error: Couldn't find stream information.")
 	}
 
 	formatContext.AvDumpFormat(0, filename, 0)
@@ -242,6 +237,10 @@ func main() {
 			break
 		}
 	}
+	if audioFrame == -1 {
+		log.Fatal("audio stream not found")
+	}
+	defer codecContext.AvcodecClose()
 
 	log.Println("Bit Rate:", codecContext.BitRate())
 	log.Println("Channels:", codecContext.Channels())
@@ -257,8 +256,7 @@ func main() {
 	audioCodec := avcodec.AvcodecFindDecoder(codecId)
 
 	if codecContext.AvcodecOpen2(audioCodec, nil) < 0 {
-		log.Println("Error: Couldn't open codec.")
-		return
+		log.Fatal("Error: Couldn't open codec.")
 	}
 	log.Println("audioCodec", audioCodec)
 
@@ -273,10 +271,12 @@ func main() {
 		AvGetDefaultChannelLayout(codecContext.Channels()),
 		(swresample.AvSampleFormat)(codecContext.SampleFmt()), codecContext.SampleRate(), 0, 0)
 	swrContext.SwrInit()
+	defer swrContext.SwrClose()
 
 	if err := sdl.Init(sdl.INIT_AUDIO | sdl.INIT_TIMER); err != nil {
 		log.Fatal("sdl.Init(sdl.INIT_AUDIO): ", err)
 	}
+	defer sdl.Quit()
 	var wanted sdl.AudioSpec
 	wanted.Freq = int32(outSampleRate)
 	wanted.Format = sdl.AUDIO_S16SYS
@@ -286,17 +286,19 @@ func main() {
 	C.set_callback((*C.SDL_AudioSpec)(unsafe.Pointer(&wanted)))
 	log.Printf("var wanted sdl.AudioSpec = %#v\n", wanted)
 
+	if err := sdl.OpenAudio(&wanted, nil); err != nil {
+		log.Fatal("sdl.OpenAudio(&wanted, nil): ", err)
+	}
+	defer sdl.CloseAudio()
+
 	audioBuffer.Grow(codecContext.FrameSize() * 2 * 2 * 4)
 	audioBufferCap := audioBuffer.Cap()
 	log.Printf("audioBuffer len: %d, cap: %d\n", audioBuffer.Len(), audioBuffer.Cap())
 
-	if err := sdl.OpenAudio(&wanted, nil); err != nil {
-		log.Fatal("sdl.OpenAudio(&wanted, nil): ", err)
-	}
-
-	index := 0
 	outBuffer := [MAX_AUDIO_FRAME_SIZE]uint8{}
 	outBufferArray := [...]*uint8{&outBuffer[0]}
+
+	index := 0
 	for formatContext.AvReadFrame(packet) >= 0 {
 		log.Println("--------")
 		log.Println("Packet read:", packet)
@@ -308,13 +310,13 @@ func main() {
 
 			var gotFrame int
 			if codecContext.AvcodecDecodeAudio4(codecFrame, &gotFrame, packet) < 0 {
-				log.Println("Error in decoding audio frame.")
-				return
+				log.Fatal("Error in decoding audio frame.")
 			}
 			if gotFrame > 0 {
 				log.Println("got")
 				log.Printf("index:%5d\t pts:%d\t packet size:%d\n", index, packet.Pts(), packet.Size())
 				frame := (*Frame)(unsafe.Pointer(codecFrame))
+				// avutil.Data(frame)
 				n := swrContext.SwrConvert(&outBufferArray[0], MAX_AUDIO_FRAME_SIZE, frame.Data(), frame.NbSamples())
 
 				len := 2 * 2 * n
@@ -339,5 +341,4 @@ func main() {
 		}
 		packet.AvFreePacket()
 	}
-
 }
