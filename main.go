@@ -1,9 +1,19 @@
 package main
 
 //#cgo pkg-config: libavutil
+//#cgo pkg-config: sdl2
+//#include <stdlib.h>
 //#include <libavutil/avutil.h>
 //#include <libavutil/channel_layout.h>
 //#include <libswresample/swresample.h>
+//#include <SDL.h>
+/*
+extern void fillAudio(Uint8 *udata, Uint8 *stream, int len);
+
+static void set_callback(SDL_AudioSpec* wanted) {
+	wanted->callback = (SDL_AudioCallback)fillAudio;
+}
+ */
 import "C"
 import (
 	"crypto/md5"
@@ -25,6 +35,7 @@ import (
 	"github.com/giorgisio/goav/avformat"
 	"github.com/giorgisio/goav/avutil"
 	"github.com/giorgisio/goav/swresample"
+	"github.com/veandco/go-sdl2/sdl"
 )
 
 const MAX_AUDIO_FRAME_SIZE = 192000
@@ -150,6 +161,26 @@ func (p *Frame) NbSamples() int {
 	return (int)(p.nb_samples)
 }
 
+var audioLen uint32
+var audioPos *uint8
+
+//export fillAudio
+func fillAudio(uData *C.Uint8, stream *C.Uint8, len C.int) {
+	C.memset(unsafe.Pointer(stream), 0, C.size_t(len))
+	if (audioLen == 0) {
+		return
+	}
+	var length uint32 = uint32(len)
+	if length > audioLen {
+		length = audioLen
+	}
+
+	sdl.MixAudio((*uint8)(stream), audioPos, length, sdl.MIX_MAXVOLUME)
+	audioLen -= length
+
+	audioPos = (*uint8)(unsafe.Pointer(uintptr(unsafe.Pointer(audioPos)) + uintptr(length)))
+}
+
 func main() {
 	log.Printf("start\n")
 	flag.Parse()
@@ -234,11 +265,29 @@ func main() {
 	packet.AvInitPacket()
 	utilFrame := avutil.AvFrameAlloc()
 
+	outSampleRate := 48000
+
 	swrContext := swresample.SwrAlloc()
-	swrContext.SwrAllocSetOpts(C.AV_CH_LAYOUT_STEREO, C.AV_SAMPLE_FMT_S16, 48000,
+	swrContext.SwrAllocSetOpts(C.AV_CH_LAYOUT_STEREO, C.AV_SAMPLE_FMT_S16, outSampleRate,
 		AvGetDefaultChannelLayout(codecContext.Channels()),
 		(swresample.AvSampleFormat)(codecContext.SampleFmt()), codecContext.SampleRate(), 0, 0)
 	swrContext.SwrInit()
+
+	if err := sdl.Init(sdl.INIT_AUDIO | sdl.INIT_TIMER); err != nil {
+		log.Fatal("sdl.Init(sdl.INIT_AUDIO): ", err)
+	}
+	var wanted sdl.AudioSpec
+	wanted.Freq = int32(outSampleRate)
+	wanted.Format = sdl.AUDIO_S16SYS
+	wanted.Channels = 2
+	wanted.Silence = 0
+	wanted.Samples = uint16(codecContext.FrameSize())
+	C.set_callback((*C.SDL_AudioSpec)(unsafe.Pointer(&wanted)))
+	log.Printf("var wanted sdl.AudioSpec = %#v\n", wanted)
+
+	if err := sdl.OpenAudio(&wanted, nil); err != nil {
+		log.Fatal("sdl.OpenAudio(&wanted, nil): ", err)
+	}
 
 	index := 0
 	outBuffer := [MAX_AUDIO_FRAME_SIZE]uint8{}
@@ -265,6 +314,14 @@ func main() {
 
 				len := 2 * 2 * n
 				log.Println("n: ", n, "bytes: ", len)
+
+				for audioLen > 0 {
+					sdl.Delay(1)
+				}
+				audioPos = &outBuffer[0]
+				audioLen = uint32(len)
+
+				sdl.PauseAudio(false);
 
 				_, err := pcmFile.Write(outBuffer[:len])
 				if err != nil {
