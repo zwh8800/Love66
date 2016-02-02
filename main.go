@@ -23,6 +23,7 @@ import (
 	"strconv"
 	"github.com/giorgisio/goav/swresample"
 	"os"
+	"io"
 )
 
 const MAX_AUDIO_FRAME_SIZE = 192000
@@ -148,11 +149,6 @@ func (p *Frame)NbSamples() int {
 	return (int)(p.nb_samples)
 }
 
-type AvSampleFormat C.enum_AVSampleFormat
-func AvSamplesGetBufferSize(lineSize *int, channels int, samples int, sampleFmt AvSampleFormat, align int) int {
-	return int(C.av_samples_get_buffer_size((*C.int)(unsafe.Pointer(lineSize)), C.int(channels), C.int(samples), C.enum_AVSampleFormat(sampleFmt), C.int(align)))
-}
-
 func main() {
 	log.Printf("start\n")
 	flag.Parse()
@@ -161,9 +157,22 @@ func main() {
 		roomId = 156277
 	}
 
-	pcmFile, err := os.OpenFile("./output.pcm", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
-	if err != nil {
-		log.Fatal(err)
+	var pcmFile io.Writer
+
+	pcmFileName := flag.Arg(1)
+	if pcmFileName == "" {
+		pcmFileName = "./output.pcm"
+		pcmFile, err = os.OpenFile(pcmFileName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+		if err != nil {
+			log.Fatal(err)
+		}
+	} else if pcmFileName == "-" {
+		pcmFile = os.Stdout
+	} else {
+		pcmFile, err = os.OpenFile(pcmFileName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 
 	filename := resolveStream(int(roomId))
@@ -229,8 +238,6 @@ func main() {
 		AvGetDefaultChannelLayout(codecContext.Channels()),
 		(swresample.AvSampleFormat)(codecContext.SampleFmt()), codecContext.SampleRate(), 0, 0)
 	swrContext.SwrInit()
-	outSize := AvSamplesGetBufferSize(nil, AvGetChannelLayoutNbChannels(C.AV_CH_LAYOUT_STEREO), codecContext.FrameSize(), C.AV_SAMPLE_FMT_S16, 1)
-	log.Println("outSize: ", outSize)
 
 	index := 0
 	outBuffer := [MAX_AUDIO_FRAME_SIZE]uint8{}
@@ -257,8 +264,7 @@ func main() {
 
 				len := 2 * 2 * n
 				log.Println("n: ", n, "bytes: ", len)
-//				len = outSize
-//				log.Println("outSize: ", len);
+				
 				_, err := pcmFile.Write(outBuffer[:len])
 				if err != nil {
 					log.Fatal(err)
