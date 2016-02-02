@@ -166,6 +166,8 @@ var audioPos *uint8
 
 //export fillAudio
 func fillAudio(uData *C.Uint8, stream *C.Uint8, len C.int) {
+	log.Println("audioLen = ", audioLen, "len = ", len)
+
 	C.memset(unsafe.Pointer(stream), 0, C.size_t(len))
 	if (audioLen == 0) {
 		return
