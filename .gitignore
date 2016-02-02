@@ -8,7 +8,7 @@
 _obj
 _test
 .idea
-Love66.iml
+Love66*
 
 # Architecture specific extensions/prefixes
 *.[568vq]
@@ -27,5 +27,5 @@ _testmain.go
 *.prof
 
 # Created by .ignore support plugin (hsz.mobi)
-log
-output.pcm
+log*
+output*
