@@ -16,22 +16,21 @@ static void set_callback(SDL_AudioSpec* wanted) {
 */
 import "C"
 import (
+	"bytes"
 	"crypto/md5"
 	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
+	"strconv"
 	"time"
 	"unsafe"
 
-	"io"
-	"os"
-	"strconv"
-
-	"bytes"
 	"github.com/giorgisio/goav/avcodec"
 	"github.com/giorgisio/goav/avformat"
 	"github.com/giorgisio/goav/avutil"
