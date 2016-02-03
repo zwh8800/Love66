@@ -7,13 +7,7 @@ package main
 //#include <libavutil/channel_layout.h>
 //#include <libswresample/swresample.h>
 //#include <SDL.h>
-/*
-extern void fillAudio(Uint8 *udata, Uint8 *stream, int len);
-
-static void set_callback(SDL_AudioSpec* wanted) {
-	wanted->callback = (SDL_AudioCallback)fillAudio;
-}
-*/
+//extern void fillAudio(void *userdata, Uint8 *stream, int len);
 import "C"
 import (
 	"bytes"
@@ -161,7 +155,7 @@ func (p *Frame) NbSamples() int {
 var audioBuffer bytes.Buffer
 
 //export fillAudio
-func fillAudio(uData *C.Uint8, stream *C.Uint8, len C.int) {
+func fillAudio(uData unsafe.Pointer, stream *C.Uint8, len C.int) {
 	log.Println("audioBuffer.Len() = ", audioBuffer.Len(), "len = ", len)
 
 	C.memset(unsafe.Pointer(stream), 0, C.size_t(len))
@@ -282,7 +276,7 @@ func main() {
 	wanted.Channels = 2
 	wanted.Silence = 0
 	wanted.Samples = uint16(codecContext.FrameSize())
-	C.set_callback((*C.SDL_AudioSpec)(unsafe.Pointer(&wanted)))
+	wanted.Callback = sdl.AudioCallback(C.fillAudio)
 	log.Printf("var wanted sdl.AudioSpec = %#v\n", wanted)
 
 	if err := sdl.OpenAudio(&wanted, nil); err != nil {
