@@ -31,7 +31,7 @@ func main() {
 	flag.Parse()
 	roomId, err := strconv.ParseInt(flag.Arg(0), 10, 32)
 	if err != nil {
-		log.Panic(err)
+		roomId = 156277
 	}
 
 	room, err := room.NewDouyuRoom(int(roomId))
