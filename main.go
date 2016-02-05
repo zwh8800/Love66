@@ -3,7 +3,6 @@ package main
 //#cgo pkg-config: libavutil
 //#cgo pkg-config: sdl2
 //#include <stdlib.h>
-//#include <libavutil/avutil.h>
 //#include <libavutil/channel_layout.h>
 //#include <libswresample/swresample.h>
 //#include <SDL.h>
@@ -223,8 +222,8 @@ func main() {
 		codec := formatContext.Streams(uint(i)).Codec()
 		codecContext = codec
 		log.Println("Stream CodecType:", codecContext.CodecType())
-		log.Println("AVMEDIA_TYPE_AUDIO: ", C.AVMEDIA_TYPE_AUDIO)
-		if codecContext.CodecType() == C.AVMEDIA_TYPE_AUDIO {
+		log.Println("AVMEDIA_TYPE_AUDIO: ", avutil.AVMEDIA_TYPE_AUDIO)
+		if codecContext.CodecType() == avutil.AVMEDIA_TYPE_AUDIO {
 			audioFrame = i
 			log.Println("audioFrame: ", audioFrame)
 			break
