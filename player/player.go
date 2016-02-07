@@ -67,7 +67,7 @@ func (p *Player) Playing() bool {
 }
 
 func (p *Player) Play() {
-	if p.playing == true {
+	if p.playing {
 		p.Stop()
 	}
 	if p.liveStreamUrl == "" {
@@ -78,7 +78,7 @@ func (p *Player) Play() {
 }
 
 func (p *Player) Stop() {
-	if p.playing == false {
+	if !p.playing {
 		return
 	}
 	p.notifyM2SChannel <- "stop"

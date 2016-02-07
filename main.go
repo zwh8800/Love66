@@ -100,7 +100,7 @@ func main() {
 
 	currentRoom := 0
 	isDebug, rooms := parsePlaylist(*playlistFilename)
-	if isDebug == false {
+	if !isDebug {
 		os.Stderr.Close()
 	}
 
