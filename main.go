@@ -6,10 +6,11 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"os"
 	"time"
 	"unicode"
 
-	"os"
+	"strings"
 
 	"github.com/nsf/termbox-go"
 	"github.com/zwh8800/Love66/player"
@@ -30,7 +31,7 @@ func formatRoomInfo(room *room.DouyuRoom) []string {
 	ret = append(ret, fmt.Sprintf("    room name: %s", room.RoomName()))
 	ret = append(ret, fmt.Sprintf("    host nickname: %s", room.Nickname()))
 	ret = append(ret, fmt.Sprintf("    game name: %s", room.GameName()))
-	ret = append(ret, fmt.Sprintf("    detail: %s", string([]rune(room.Details())[:10])))
+	ret = append(ret, fmt.Sprintf("    detail: %s", strings.Replace(room.Details(), "\n", " ", -1)))
 	ret = append(ret, fmt.Sprintf("    live stream url: %s", room.LiveStreamUrl()))
 	return ret
 }
@@ -94,6 +95,8 @@ func update(room *room.DouyuRoom) {
 	termbox.Flush()
 }
 
+var LOADING_CHAR = []rune{'-', '\\', '|', '/'}
+
 func main() {
 	playlistFilename := flag.String("playlist", "playlist.json", "specify a playlist with json format")
 	flag.Parse()
@@ -119,6 +122,7 @@ func main() {
 	update(rooms[currentRoom])
 	playRoom(player, rooms[currentRoom])
 
+	w, h := termbox.Size()
 mainloop:
 	for {
 		switch ev := termbox.PollEvent(); ev.Type {
@@ -150,5 +154,14 @@ mainloop:
 				playRoom(player, rooms[currentRoom])
 			}
 		}
+
+		for i := 0; player.Loading(); i++ {
+			i %= len(LOADING_CHAR)
+			termbox.SetCell(w/2, h/2, LOADING_CHAR[i], termbox.ColorDefault|termbox.AttrBold, termbox.ColorDefault)
+			termbox.Flush()
+			time.Sleep(200 * time.Millisecond)
+		}
+		termbox.SetCell(w/2, h/2, ' ', termbox.ColorDefault|termbox.AttrBold, termbox.ColorDefault)
+		termbox.Flush()
 	}
 }

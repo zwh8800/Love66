@@ -42,20 +42,26 @@ type Player struct {
 	notifyM2SChannel chan string
 	notifyS2MChannel chan string
 	errorChannel     chan error
+	stoppedChannel   chan bool
 	playing          bool
+	loading          bool
 	liveStreamUrl    string
 	audioBuffer      *bytes.Buffer
 }
 
 func NewPlayer(liveStreamUrl string) *Player {
-	return &Player{
+	p := &Player{
 		make(chan string),
 		make(chan string),
 		make(chan error),
+		make(chan bool),
+		false,
 		false,
 		liveStreamUrl,
 		nil,
 	}
+	go p.dispatcher()
+	return p
 }
 
 func (p *Player) ChangeLiveStreamUrl(liveStreamUrl string) {
@@ -66,6 +72,22 @@ func (p *Player) Playing() bool {
 	return p.playing
 }
 
+func (p *Player) Loading() bool {
+	return p.loading
+}
+
+func (p *Player) dispatcher() {
+	for {
+		switch msg := <-p.notifyS2MChannel; msg {
+		case "started":
+			p.loading = false
+		case "stopped":
+			p.playing = false
+			p.stoppedChannel <- true
+		}
+	}
+}
+
 func (p *Player) Play() {
 	if p.playing {
 		p.Stop()
@@ -74,6 +96,7 @@ func (p *Player) Play() {
 		return
 	}
 	p.playing = true
+	p.loading = true
 	go p.playRoutine()
 }
 
@@ -82,9 +105,7 @@ func (p *Player) Stop() {
 		return
 	}
 	p.notifyM2SChannel <- "stop"
-	for <-p.notifyS2MChannel != "stoped" {
-	}
-	p.playing = false
+	<-p.stoppedChannel
 }
 
 func (p *Player) ErrorChannel() chan error {
@@ -132,7 +153,7 @@ func createSwr(codecContext *avcodec.CodecContext) *swresample.Context {
 }
 
 func (p *Player) playRoutine() {
-	defer func() { p.notifyS2MChannel <- "stoped" }()
+	defer func() { p.notifyS2MChannel <- "stopped" }()
 
 	var formatContext *avformat.Context
 	if errNum := avformat.AvformatOpenInput(&formatContext, p.liveStreamUrl, nil, nil); errNum != 0 {
@@ -176,6 +197,7 @@ func (p *Player) playRoutine() {
 	}
 	defer sdl.CloseAudio()
 
+	startedReported := false
 readPacketLoop:
 	for formatContext.AvReadFrame(packet) >= 0 {
 		select {
@@ -201,6 +223,10 @@ readPacketLoop:
 				len := outChannelCount * outSampleSize * n
 
 				for p.audioBuffer.Len() >= audioBufferCap {
+					if !startedReported {
+						p.notifyS2MChannel <- "started"
+						startedReported = true
+					}
 					sdl.Delay(1)
 				}
 				if _, err := p.audioBuffer.Write(outBuffer[:len]); err != nil {
