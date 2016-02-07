@@ -9,6 +9,8 @@ import (
 	"time"
 	"unicode"
 
+	"os"
+
 	"github.com/nsf/termbox-go"
 	"github.com/zwh8800/Love66/player"
 	"github.com/zwh8800/Love66/room"
@@ -33,24 +35,28 @@ func formatRoomInfo(room *room.DouyuRoom) []string {
 	return ret
 }
 
-func parsePlaylist(playlistFilename string) []*room.DouyuRoom {
+func parsePlaylist(playlistFilename string) (bool, []*room.DouyuRoom) {
 	playlistData, err := ioutil.ReadFile(playlistFilename)
 	if err != nil {
 		log.Panic(err)
 	}
-	playlist := make([]int, 0)
+	playlist := struct {
+		Debug    bool  `json:"debug"`
+		Playlist []int `json:"playlist"`
+	}{}
+
 	if err := json.Unmarshal(playlistData, &playlist); err != nil {
 		log.Panic(err)
 	}
 	rooms := make([]*room.DouyuRoom, 0)
-	for _, roomId := range playlist {
+	for _, roomId := range playlist.Playlist {
 		room, err := room.NewDouyuRoom(int(roomId))
 		if err != nil {
 			log.Panic(err)
 		}
 		rooms = append(rooms, room)
 	}
-	return rooms
+	return playlist.Debug, rooms
 }
 
 func playRoom(player *player.Player, room *room.DouyuRoom) {
@@ -92,6 +98,12 @@ func main() {
 	playlistFilename := flag.String("playlist", "playlist.json", "specify a playlist with json format")
 	flag.Parse()
 
+	currentRoom := 0
+	isDebug, rooms := parsePlaylist(*playlistFilename)
+	if isDebug == false {
+		os.Stderr.Close()
+	}
+
 	if err := player.Init(); err != nil {
 		log.Panic(err)
 	}
@@ -103,8 +115,6 @@ func main() {
 	defer termbox.Close()
 	termbox.SetInputMode(termbox.InputEsc)
 
-	currentRoom := 0
-	rooms := parsePlaylist(*playlistFilename)
 	player := player.NewPlayer(rooms[currentRoom].LiveStreamUrl())
 	update(rooms[currentRoom])
 	playRoom(player, rooms[currentRoom])
