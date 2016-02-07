@@ -148,18 +148,14 @@ func (p *Player) playRoutine() {
 	}
 	defer sdl.CloseAudio()
 
+readPacketLoop:
 	for formatContext.AvReadFrame(packet) >= 0 {
-		stop := false
 		select {
 		case msg := <-p.notifyM2SChannel:
 			if msg == "stop" {
-				stop = true
+				break readPacketLoop
 			}
 		default:
-
-		}
-		if stop {
-			break
 		}
 
 		if packet.StreamIndex() == audioIndex {
