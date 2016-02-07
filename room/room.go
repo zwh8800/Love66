@@ -12,8 +12,9 @@ import (
 )
 
 type DouyuRoom struct {
-	roomId   int
-	roomInfo *douyuRoomInfoJson
+	roomId      int
+	roomInfo    *douyuRoomInfoJson
+	lastRefresh time.Time
 }
 
 func NewDouyuRoom(roomId int) (*DouyuRoom, error) {
@@ -22,7 +23,7 @@ func NewDouyuRoom(roomId int) (*DouyuRoom, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &DouyuRoom{roomId, roomInfo}, nil
+	return &DouyuRoom{roomId, roomInfo, time.Now()}, nil
 }
 
 func (r *DouyuRoom) Refresh() error {
@@ -32,7 +33,14 @@ func (r *DouyuRoom) Refresh() error {
 		return err
 	}
 	r.roomInfo = roomInfo
+	r.lastRefresh = time.Now()
 	return nil
+}
+
+func (r *DouyuRoom) RefreshIfExpire(expire time.Duration) {
+	if time.Now().Sub(r.lastRefresh) > expire {
+		r.Refresh()
+	}
 }
 
 func (r *DouyuRoom) Online() bool {

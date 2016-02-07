@@ -54,7 +54,7 @@ func NewPlayer(liveStreamUrl string) *Player {
 		make(chan error),
 		false,
 		liveStreamUrl,
-		new(bytes.Buffer),
+		nil,
 	}
 }
 
@@ -62,16 +62,42 @@ func (p *Player) ChangeLiveStreamUrl(liveStreamUrl string) {
 	p.liveStreamUrl = liveStreamUrl
 }
 
+func (p *Player) Playing() bool {
+	return p.playing
+}
+
 func (p *Player) Play() {
+	if p.playing == true {
+		p.Stop()
+	}
+	if p.liveStreamUrl == "" {
+		return
+	}
 	p.playing = true
 	go p.playRoutine()
 }
 
 func (p *Player) Stop() {
+	if p.playing == false {
+		return
+	}
 	p.notifyM2SChannel <- "stop"
 	for <-p.notifyS2MChannel != "stoped" {
 	}
 	p.playing = false
+}
+
+func (p *Player) ErrorChannel() chan error {
+	return p.errorChannel
+}
+
+func (p *Player) Error() error {
+	select {
+	case err := <-p.errorChannel:
+		return err
+	case <-time.After(time.Second * 1):
+		return nil
+	}
 }
 
 const (
@@ -130,6 +156,8 @@ func (p *Player) playRoutine() {
 		p.errorChannel <- errors.New("audio stream not found")
 		return
 	}
+	p.audioBuffer = new(bytes.Buffer)
+	defer func() { p.audioBuffer = nil }()
 	audioBufferCap := codecContext.FrameSize() * outChannelCount * outSampleSize * 4
 	p.audioBuffer.Grow(audioBufferCap)
 
@@ -184,18 +212,5 @@ readPacketLoop:
 			}
 		}
 		packet.AvFreePacket()
-	}
-}
-
-func (p *Player) ErrorChannel() chan error {
-	return p.errorChannel
-}
-
-func (p *Player) Error() error {
-	select {
-	case err := <-p.errorChannel:
-		return err
-	case <-time.After(time.Second * 1):
-		return nil
 	}
 }
