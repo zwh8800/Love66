@@ -96,13 +96,14 @@ func (r *DanmukuRoom) Start() error {
 		return err
 	}
 
-	go r.workerRoutine()
+	go r.readRoutine()
+	go r.keepAliveRoutine()
 
 	return nil
 }
 
 func (r *DanmukuRoom) Stop() {
-	r.stopChannel <- true
+	close(r.stopChannel)
 	r.conn.Close()
 }
 
@@ -257,7 +258,7 @@ func readMessage(conn net.Conn) (string, error) {
 	return string(messageData), nil
 }
 
-func (r *DanmukuRoom) workerRoutine() {
+func (r *DanmukuRoom) readRoutine() {
 	for {
 		select {
 		case <-r.stopChannel:
@@ -266,6 +267,7 @@ func (r *DanmukuRoom) workerRoutine() {
 		}
 		message, err := readMessage(r.conn)
 		if err != nil {
+			log.Println(err)
 			return
 		}
 		msg := parseMessage(message)
@@ -275,5 +277,24 @@ func (r *DanmukuRoom) workerRoutine() {
 				msg["content"],
 			}
 		}
+	}
+}
+
+func (r *DanmukuRoom) keepAliveRoutine() {
+	for {
+		select {
+		case <-r.stopChannel:
+			return
+		default:
+		}
+		keepAlive := formatMessage(map[string]string{
+			"type": "keeplive",
+			"tick": strconv.Itoa(int(time.Now().Unix())),
+		})
+		if err := writeMessage(r.conn, keepAlive); err != nil {
+			log.Println(err)
+			return
+		}
+		time.Sleep(40 * time.Second)
 	}
 }
