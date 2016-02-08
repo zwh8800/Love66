@@ -1,8 +1,8 @@
 package danmuku
 
 import (
+	"log"
 	"testing"
-	"time"
 )
 
 func TestDanmuku(t *testing.T) {
@@ -13,5 +13,8 @@ func TestDanmuku(t *testing.T) {
 	}
 	defer danmukuRoom.Stop()
 
-	time.Sleep(30 * time.Second)
+	for {
+		danmuku := danmukuRoom.PeekDanmuku()
+		log.Printf("%s: %s\n", danmuku.User, danmuku.Content)
+	}
 }

@@ -36,7 +36,7 @@ type DanmukuRoom struct {
 	roomId         int
 	conn           net.Conn
 	gidConn        net.Conn
-	danmukuChannel chan string
+	danmukuChannel chan Danmuku
 }
 
 func NewDanmukuRoom(roomId int) *DanmukuRoom {
@@ -44,7 +44,7 @@ func NewDanmukuRoom(roomId int) *DanmukuRoom {
 		roomId,
 		nil,
 		nil,
-		make(chan string),
+		make(chan Danmuku),
 	}
 }
 
@@ -104,7 +104,8 @@ func (r *DanmukuRoom) Stop() {
 }
 
 func (r *DanmukuRoom) PeekDanmuku() *Danmuku {
-	return &Danmuku{}
+	danmuku := <-r.danmukuChannel
+	return &danmuku
 }
 
 func formatMessage(msg map[string]string) string {
@@ -257,9 +258,14 @@ func (r *DanmukuRoom) workerRoutine() {
 	for {
 		message, err := readMessage(r.conn)
 		if err != nil {
-
+			return
 		}
-		log.Println(parseMessage(message))
-		//r.danmukuChannel <- message
+		msg := parseMessage(message)
+		if msg["type"] == "chatmessage" {
+			r.danmukuChannel <- Danmuku{
+				msg["snick"],
+				msg["content"],
+			}
+		}
 	}
 }
