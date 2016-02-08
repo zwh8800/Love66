@@ -49,6 +49,25 @@ func NewDanmukuRoom(roomId int) *DanmukuRoom {
 }
 
 func (r *DanmukuRoom) Start() error {
+	roomHtml, err := r.getHtml()
+	if err != nil {
+		return err
+	}
+	sc, err := parseServerConfig(roomHtml)
+	if err != nil {
+		return err
+	}
+	gidConn, err := net.Dial("tcp", sc[0].IP+":"+sc[0].Port)
+	if err != nil {
+		return err
+	}
+	r.gidConn = gidConn
+	defer r.gidConn.Close()
+	gid, err := r.getGid()
+	if err != nil {
+		return err
+	}
+
 	conn, err := net.Dial("tcp", danmukuServer)
 	if err != nil {
 		return err
@@ -66,21 +85,14 @@ func (r *DanmukuRoom) Start() error {
 		return err
 	}
 
-	roomHtml, err := r.getHtml()
-	if err != nil {
+	joinGroup := formatMessage(map[string]string{
+		"type": "joingroup",
+		"rid":  strconv.Itoa(r.roomId),
+		"gid":  strconv.Itoa(gid),
+	})
+	if err := writeMessage(r.conn, joinGroup); err != nil {
 		return err
 	}
-	sc, err := parseServerConfig(roomHtml)
-	if err != nil {
-		return err
-	}
-	gidConn, err := net.Dial("tcp", sc[0].IP+":"+sc[0].Port)
-	if err != nil {
-		return err
-	}
-	r.gidConn = gidConn
-	defer r.gidConn.Close()
-	r.getGid()
 
 	go r.workerRoutine()
 
@@ -159,37 +171,20 @@ func (r *DanmukuRoom) getGid() (int, error) {
 		return 0, err
 	}
 
-	message, err := readMessage(r.gidConn)
-	if err != nil {
-		return 0, err
+	for {
+		message, err := readMessage(r.gidConn)
+		if err != nil {
+			return 0, err
+		}
+		msg := parseMessage(message)
+		if msg["type"] == "setmsggroup" {
+			gid, err := strconv.ParseInt(msg["gid"], 10, 32)
+			if err != nil {
+				return 0, nil
+			}
+			return int(gid), nil
+		}
 	}
-	log.Println("158", parseMessage(message))
-
-	message, err = readMessage(r.gidConn)
-	if err != nil {
-		return 0, err
-	}
-	log.Println("158", parseMessage(message))
-
-	message, err = readMessage(r.gidConn)
-	if err != nil {
-		return 0, err
-	}
-	log.Println("158", parseMessage(message))
-
-	message, err = readMessage(r.gidConn)
-	if err != nil {
-		return 0, err
-	}
-	log.Println("158", parseMessage(message))
-
-	message, err = readMessage(r.gidConn)
-	if err != nil {
-		return 0, err
-	}
-	log.Println("158", parseMessage(message))
-
-	return 0, nil
 }
 
 func (r *DanmukuRoom) getHtml() (string, error) {
