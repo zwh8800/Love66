@@ -37,6 +37,7 @@ type DanmukuRoom struct {
 	conn           net.Conn
 	gidConn        net.Conn
 	danmukuChannel chan Danmuku
+	stopChannel    chan bool
 }
 
 func NewDanmukuRoom(roomId int) *DanmukuRoom {
@@ -100,6 +101,7 @@ func (r *DanmukuRoom) Start() error {
 }
 
 func (r *DanmukuRoom) Stop() {
+	r.stopChannel <- true
 	r.conn.Close()
 }
 
@@ -256,6 +258,11 @@ func readMessage(conn net.Conn) (string, error) {
 
 func (r *DanmukuRoom) workerRoutine() {
 	for {
+		select {
+		case <-r.stopChannel:
+			return
+		default:
+		}
 		message, err := readMessage(r.conn)
 		if err != nil {
 			return
