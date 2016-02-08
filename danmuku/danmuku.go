@@ -46,6 +46,7 @@ func NewDanmukuRoom(roomId int) *DanmukuRoom {
 		nil,
 		nil,
 		make(chan Danmuku),
+		make(chan bool),
 	}
 }
 
