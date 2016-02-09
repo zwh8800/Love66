@@ -8,8 +8,6 @@ import (
 	"os"
 	"time"
 
-	"strings"
-
 	"strconv"
 
 	"github.com/zwh8800/Love66/danmuku"
@@ -202,8 +200,8 @@ func getViewData(prevData *view.Data, newDanmuku *danmuku.Danmuku) *view.Data {
 			onlineStr + room.Nickname(),
 			room.RoomName(),
 			room.GameName(),
-			strings.Replace(room.Details(), "\n", " ", -1),
-			room.LiveStreamUrl(),
+			//			strings.Replace(room.Details(), "\n", " ", -1),
+			//			room.LiveStreamUrl(),
 		},
 		danmukuData,
 		mainPlayer.Loading(),
