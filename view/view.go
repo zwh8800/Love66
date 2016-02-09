@@ -1,6 +1,7 @@
 package view
 
 import (
+	"time"
 	"unicode"
 
 	"github.com/nsf/termbox-go"
@@ -20,6 +21,8 @@ var (
 	quit            Handler
 	lineCountChange Handler
 	mainLoopChannel chan bool
+	loadingChannel  chan bool = make(chan bool)
+	isLoading                 = false
 
 	w int
 	h int
@@ -108,8 +111,34 @@ func drawRight() {
 	}
 }
 
+var loadingChar = []rune{'-', '\\', '|', '/'}
+
+func drawSpinner() {
+	for i := 0; ; i++ {
+		select {
+		case <-mainLoopChannel:
+			return
+		case <-loadingChannel:
+			return
+		default:
+		}
+
+		i %= len(loadingChar)
+		termbox.SetCell(w/2, h/2, loadingChar[i], termbox.ColorDefault|termbox.AttrBold, termbox.ColorDefault)
+		termbox.Flush()
+		time.Sleep(200 * time.Millisecond)
+	}
+}
+
 func Update() {
 	termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
+	if data.Loading && !isLoading {
+		isLoading = true
+		go drawSpinner()
+	} else if isLoading && !data.Loading {
+		isLoading = false
+		loadingChannel <- true
+	}
 	drawSplitter()
 	drawLeft()
 	drawRight()
