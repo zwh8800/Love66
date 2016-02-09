@@ -19,13 +19,14 @@ import (
 )
 
 var (
-	isDebug      bool
-	rooms        []*room.DouyuRoom
-	danmukuRooms []*danmuku.DanmukuRoom
-	currentRoom  int
-	mainPlayer   *player.Player
-	maxLineCount int
-	quitChannel  chan bool = make(chan bool)
+	isDebug       bool
+	rooms         []*room.DouyuRoom
+	danmukuRooms  []*danmuku.DanmukuRoom
+	currentRoom   int
+	mainPlayer    *player.Player
+	maxLineCount  int
+	quitChannel   chan bool = make(chan bool)
+	changeChannel chan bool = make(chan bool)
 )
 
 func main() {
@@ -50,14 +51,14 @@ func main() {
 	defer view.DeInit()
 	maxLineCount = view.GetMaxLineCount()
 
-	view.SetData(getViewData(nil))
+	view.SetData(getViewData(nil, nil))
 	view.OnMaxLineCountChange(func(args ...interface{}) {
 		var ok bool
 		maxLineCount, ok = args[0].(int)
 		if !ok {
 			log.Panic("cast error")
 		}
-		view.SetData(getViewData(nil))
+		view.SetData(getViewData(nil, nil))
 		view.Update()
 	})
 	view.OnKeyNext(func(args ...interface{}) {
@@ -70,8 +71,9 @@ func main() {
 		startDanmukuRoom()
 		playRoom()
 
-		view.SetData(getViewData(nil))
+		view.SetData(getViewData(nil, nil))
 		view.Update()
+		changeChannel <- true
 	})
 	view.OnKeyPrev(func(args ...interface{}) {
 		stopDanmukuRoom()
@@ -83,8 +85,9 @@ func main() {
 		startDanmukuRoom()
 		playRoom()
 
-		view.SetData(getViewData(nil))
+		view.SetData(getViewData(nil, nil))
 		view.Update()
+		changeChannel <- true
 	})
 	view.OnKeyQuit(func(args ...interface{}) {
 		close(quitChannel)
@@ -94,7 +97,14 @@ func main() {
 
 	dataChannel := make(chan *view.Data)
 	go func() {
-		dataChannel <- getViewData(view.GetData())
+		for {
+			danmukuRoom := danmukuRooms[currentRoom]
+			select {
+			case <-changeChannel:
+			case danmuku := <-danmukuRoom.GetDanmukuChannel():
+				dataChannel <- getViewData(view.GetData(), &danmuku)
+			}
+		}
 	}()
 
 	startDanmukuRoom()
@@ -150,24 +160,28 @@ func playRoom() {
 }
 
 func startDanmukuRoom() {
-	curRoom := danmukuRooms[currentRoom]
-	curRoom.Start()
+	room := rooms[currentRoom]
+	if room.Online() {
+		curRoom := danmukuRooms[currentRoom]
+		curRoom.Start()
+	}
 }
 
 func stopDanmukuRoom() {
-	prevRoom := danmukuRooms[currentRoom]
-	prevRoom.Stop()
+	room := rooms[currentRoom]
+	if room.Online() {
+		prevRoom := danmukuRooms[currentRoom]
+		prevRoom.Stop()
+	}
 }
 
-func getViewData(prevData *view.Data) *view.Data {
+func getViewData(prevData *view.Data, newDanmuku *danmuku.Danmuku) *view.Data {
 	var danmukuData []string
 	if prevData == nil {
 		danmukuData = []string{
 			"欢迎",
 		}
 	} else {
-		danmukuRoom := danmukuRooms[currentRoom]
-		newDanmuku := danmukuRoom.PeekDanmuku()
 		danmukuData = append(prevData.RightLines, newDanmuku.User+": "+newDanmuku.Content)
 		if len(danmukuData) > maxLineCount {
 			danmukuData =

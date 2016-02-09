@@ -114,6 +114,10 @@ func (r *DanmukuRoom) PeekDanmuku() *Danmuku {
 	return &danmuku
 }
 
+func (r *DanmukuRoom) GetDanmukuChannel() chan Danmuku {
+	return r.danmukuChannel
+}
+
 func formatMessage(msg map[string]string) string {
 	message := make([]string, 0)
 	for k, v := range msg {
@@ -240,13 +244,13 @@ func readMessage(conn net.Conn) (string, error) {
 		return "", err
 	}
 	if length != length2 {
-		log.Printf("length(%d) != length2(%d)\n", length, length2)
+		log.Printf("243:", "length(%d) != length2(%d)\n", length, length2)
 	}
 	if err := binary.Read(conn, binary.LittleEndian, &messageType); err != nil {
 		return "", err
 	}
 	if messageType != typeRecv {
-		log.Printf("messageData(%d) != typeRecv\n", messageType)
+		log.Printf("249:", "messageData(%d) != typeRecv\n", messageType)
 	}
 	messageData := make([]byte, length-8)
 	n, err := conn.Read(messageData)
@@ -254,7 +258,7 @@ func readMessage(conn net.Conn) (string, error) {
 		return "", err
 	}
 	if n != int(length-8) {
-		log.Printf("n(%d) != length - 8(%d)\n", n, length-8)
+		log.Printf("257:", "n(%d) != length - 8(%d)\n", n, length-8)
 	}
 
 	return string(messageData), nil
@@ -269,7 +273,7 @@ func (r *DanmukuRoom) readRoutine() {
 		}
 		message, err := readMessage(r.conn)
 		if err != nil {
-			log.Println(err)
+			log.Println("272:", err)
 			return
 		}
 		msg := parseMessage(message)
@@ -294,7 +298,7 @@ func (r *DanmukuRoom) keepAliveRoutine() {
 			"tick": strconv.Itoa(int(time.Now().Unix())),
 		})
 		if err := writeMessage(r.conn, keepAlive); err != nil {
-			log.Println(err)
+			log.Println("297:", err)
 			return
 		}
 		time.Sleep(40 * time.Second)
