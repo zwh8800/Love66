@@ -167,7 +167,7 @@ func OnMaxLineCountChange(h Handler) {
 
 func emit(h Handler, args ...interface{}) {
 	if h != nil {
-		h(args)
+		h(args...)
 	}
 }
 
