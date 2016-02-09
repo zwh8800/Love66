@@ -45,12 +45,14 @@ func NewDanmukuRoom(roomId int) *DanmukuRoom {
 		roomId,
 		nil,
 		nil,
-		make(chan Danmuku),
-		make(chan bool),
+		nil,
+		nil,
 	}
 }
 
 func (r *DanmukuRoom) Start() error {
+	r.danmukuChannel = make(chan Danmuku)
+	r.stopChannel = make(chan bool)
 	roomHtml, err := r.getHtml()
 	if err != nil {
 		return err

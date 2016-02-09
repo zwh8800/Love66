@@ -50,6 +50,10 @@ func GetMaxLineCount() int {
 	return h
 }
 
+func GetData() *Data {
+	return data
+}
+
 func SetData(d *Data) {
 	data = d
 }

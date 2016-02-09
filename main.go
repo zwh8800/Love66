@@ -3,40 +3,119 @@ package main
 import (
 	"encoding/json"
 	"flag"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
 	"time"
-	"unicode"
 
 	"strings"
 
-	"github.com/nsf/termbox-go"
+	"strconv"
+
+	"github.com/zwh8800/Love66/danmuku"
 	"github.com/zwh8800/Love66/player"
 	"github.com/zwh8800/Love66/room"
+	"github.com/zwh8800/Love66/view"
 )
 
-func formatRoomInfo(room *room.DouyuRoom) []string {
-	ret := make([]string, 0)
+var (
+	isDebug      bool
+	rooms        []*room.DouyuRoom
+	danmukuRooms []*danmuku.DanmukuRoom
+	currentRoom  int
+	mainPlayer   *player.Player
+	maxLineCount int
+	quitChannel  chan bool = make(chan bool)
+)
 
-	var onlineStr string
-	if room.Online() {
-		onlineStr = "is online"
-	} else {
-		onlineStr = "is offline"
+func main() {
+	playlistFilename := flag.String("playlist", "playlist.json", "specify a playlist with json format")
+	flag.Parse()
+
+	isDebug, rooms, danmukuRooms = parsePlaylist(*playlistFilename)
+	if !isDebug {
+		os.Stderr.Close()
 	}
-	ret = append(ret, fmt.Sprintf("room #%d: ", room.RoomId()))
-	ret = append(ret, fmt.Sprintf("    room %s", onlineStr))
-	ret = append(ret, fmt.Sprintf("    room name: %s", room.RoomName()))
-	ret = append(ret, fmt.Sprintf("    host nickname: %s", room.Nickname()))
-	ret = append(ret, fmt.Sprintf("    game name: %s", room.GameName()))
-	ret = append(ret, fmt.Sprintf("    detail: %s", strings.Replace(room.Details(), "\n", " ", -1)))
-	ret = append(ret, fmt.Sprintf("    live stream url: %s", room.LiveStreamUrl()))
-	return ret
+	currentRoom = 0
+
+	if err := player.Init(); err != nil {
+		log.Panic(err)
+	}
+	defer player.DeInit()
+	mainPlayer = player.NewPlayer(rooms[currentRoom].LiveStreamUrl())
+
+	if err := view.Init(); err != nil {
+		log.Panic(err)
+	}
+	defer view.DeInit()
+	maxLineCount = view.GetMaxLineCount()
+
+	view.SetData(getViewData(nil))
+	view.OnMaxLineCountChange(func(args ...interface{}) {
+		var ok bool
+		maxLineCount, ok = args[0].(int)
+		if !ok {
+			log.Panic("cast error")
+		}
+		view.SetData(getViewData(nil))
+		view.Update()
+	})
+	view.OnKeyNext(func(args ...interface{}) {
+		stopDanmukuRoom()
+		if currentRoom >= len(rooms)-1 {
+			currentRoom = 0
+		} else {
+			currentRoom++
+		}
+		startDanmukuRoom()
+		playRoom()
+
+		view.SetData(getViewData(nil))
+		view.Update()
+	})
+	view.OnKeyPrev(func(args ...interface{}) {
+		stopDanmukuRoom()
+		if currentRoom <= 0 {
+			currentRoom = len(rooms) - 1
+		} else {
+			currentRoom--
+		}
+		startDanmukuRoom()
+		playRoom()
+
+		view.SetData(getViewData(nil))
+		view.Update()
+	})
+	view.OnKeyQuit(func(args ...interface{}) {
+		close(quitChannel)
+	})
+	view.Update()
+	go view.MainLoop()
+
+	dataChannel := make(chan *view.Data)
+	go func() {
+		dataChannel <- getViewData(view.GetData())
+	}()
+
+	startDanmukuRoom()
+	playRoom()
+
+	mainLoop(dataChannel)
 }
 
-func parsePlaylist(playlistFilename string) (bool, []*room.DouyuRoom) {
+func mainLoop(dataChannel chan *view.Data) {
+	for {
+		select {
+		case data := <-dataChannel:
+			view.SetData(data)
+			view.Update()
+		case <-quitChannel:
+			return
+		}
+	}
+}
+
+func parsePlaylist(playlistFilename string) (bool, []*room.DouyuRoom, []*danmuku.DanmukuRoom) {
 	playlistData, err := ioutil.ReadFile(playlistFilename)
 	if err != nil {
 		log.Panic(err)
@@ -50,118 +129,71 @@ func parsePlaylist(playlistFilename string) (bool, []*room.DouyuRoom) {
 		log.Panic(err)
 	}
 	rooms := make([]*room.DouyuRoom, 0)
+	danmukuRooms := make([]*danmuku.DanmukuRoom, 0)
 	for _, roomId := range playlist.Playlist {
 		room, err := room.NewDouyuRoom(int(roomId))
 		if err != nil {
 			log.Panic(err)
 		}
 		rooms = append(rooms, room)
+		danmukuRoom := danmuku.NewDanmukuRoom(int(roomId))
+		danmukuRooms = append(danmukuRooms, danmukuRoom)
 	}
-	return playlist.Debug, rooms
+	return playlist.Debug, rooms, danmukuRooms
 }
 
-func playRoom(player *player.Player, room *room.DouyuRoom) {
+func playRoom() {
+	room := rooms[currentRoom]
 	room.RefreshIfExpire(time.Minute * 2)
-	player.ChangeLiveStreamUrl(room.LiveStreamUrl())
-	player.Play()
+	mainPlayer.ChangeLiveStreamUrl(room.LiveStreamUrl())
+	mainPlayer.Play()
 }
 
-func isChineseChar(r rune) bool {
-	if r > unicode.MaxLatin1 {
-		return true
+func startDanmukuRoom() {
+	curRoom := danmukuRooms[currentRoom]
+	curRoom.Start()
+}
+
+func stopDanmukuRoom() {
+	prevRoom := danmukuRooms[currentRoom]
+	prevRoom.Stop()
+}
+
+func getViewData(prevData *view.Data) *view.Data {
+	var danmukuData []string
+	if prevData == nil {
+		danmukuData = []string{
+			"欢迎",
+		}
 	} else {
-		return false
-	}
-}
-
-func tbPrint(x, y int, fg, bg termbox.Attribute, msg string) {
-	for _, c := range msg {
-		termbox.SetCell(x, y, c, fg, bg)
-		if isChineseChar(c) {
-			x += 2
-		} else {
-			x++
+		danmukuRoom := danmukuRooms[currentRoom]
+		newDanmuku := danmukuRoom.PeekDanmuku()
+		danmukuData = append(prevData.RightLines, newDanmuku.User+": "+newDanmuku.Content)
+		if len(danmukuData) > maxLineCount {
+			danmukuData =
+				danmukuData[len(danmukuData)-maxLineCount : len(danmukuData)]
 		}
 	}
-}
 
-func update(room *room.DouyuRoom) {
-	termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
-	tbPrint(0, 0, termbox.ColorMagenta, termbox.ColorDefault, "Press 'q' to quit")
-	roomInfo := formatRoomInfo(room)
-	for i, line := range roomInfo {
-		tbPrint(0, 1+i, termbox.ColorDefault, termbox.ColorDefault, line)
+	room := rooms[currentRoom]
+	onlineStr := ""
+	if room.Online() {
+		onlineStr = "[在线]"
+	} else {
+		onlineStr = "[离线]"
 	}
-	termbox.Flush()
-}
-
-var LOADING_CHAR = []rune{'-', '\\', '|', '/'}
-
-func main() {
-	playlistFilename := flag.String("playlist", "playlist.json", "specify a playlist with json format")
-	flag.Parse()
-
-	currentRoom := 0
-	isDebug, rooms := parsePlaylist(*playlistFilename)
-	if !isDebug {
-		os.Stderr.Close()
+	data := view.Data{
+		[]string{
+			"#" + strconv.Itoa(room.RoomId()),
+			onlineStr + room.Nickname(),
+			room.RoomName(),
+			room.GameName(),
+			strings.Replace(room.Details(), "\n", " ", -1),
+			room.LiveStreamUrl(),
+		},
+		danmukuData,
+		mainPlayer.Loading(),
 	}
 
-	if err := player.Init(); err != nil {
-		log.Panic(err)
-	}
-	defer player.DeInit()
-
-	if err := termbox.Init(); err != nil {
-		log.Panic(err)
-	}
-	defer termbox.Close()
-	termbox.SetInputMode(termbox.InputEsc)
-
-	player := player.NewPlayer(rooms[currentRoom].LiveStreamUrl())
-	update(rooms[currentRoom])
-	playRoom(player, rooms[currentRoom])
-
-	w, h := termbox.Size()
-mainloop:
-	for {
-		switch ev := termbox.PollEvent(); ev.Type {
-		case termbox.EventKey:
-			if ev.Ch == 'q' {
-				break mainloop
-			}
-
-			switch ev.Key {
-			case termbox.KeyEsc:
-				break mainloop
-			case termbox.KeyArrowUp:
-			case termbox.KeyArrowLeft:
-				if currentRoom <= 0 {
-					currentRoom = len(rooms) - 1
-				} else {
-					currentRoom--
-				}
-				update(rooms[currentRoom])
-				playRoom(player, rooms[currentRoom])
-			case termbox.KeyArrowDown:
-			case termbox.KeyArrowRight:
-				if currentRoom >= len(rooms)-1 {
-					currentRoom = 0
-				} else {
-					currentRoom++
-				}
-				update(rooms[currentRoom])
-				playRoom(player, rooms[currentRoom])
-			}
-		}
-
-		for i := 0; player.Loading(); i++ {
-			i %= len(LOADING_CHAR)
-			termbox.SetCell(w/2, h/2, LOADING_CHAR[i], termbox.ColorDefault|termbox.AttrBold, termbox.ColorDefault)
-			termbox.Flush()
-			time.Sleep(200 * time.Millisecond)
-		}
-		termbox.SetCell(w/2, h/2, ' ', termbox.ColorDefault|termbox.AttrBold, termbox.ColorDefault)
-		termbox.Flush()
-	}
+	return &data
 }

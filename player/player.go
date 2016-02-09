@@ -83,6 +83,7 @@ func (p *Player) dispatcher() {
 			p.loading = false
 		case "stopped":
 			p.playing = false
+			p.loading = false
 			p.stoppedChannel <- true
 		}
 	}
