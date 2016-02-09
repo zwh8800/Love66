@@ -38,7 +38,7 @@ func TestView(t *testing.T) {
 		data.Loading = !data.Loading
 
 		data.LeftLines[0] = "Prev Press"
-		data.RightLines = append(data.RightLines, "Prev PressPrev PressPrev PressPrev PressPrev PressPrev PressPrev PressPrev PressPrev PressPrev PressPrev PressPrev PressPrev PressPrev PressPrev PressPrev PressPrev PressPrev Press")
+		data.RightLines = append(data.RightLines, "Prev Press Prev Press Prev Press Prev Press Prev Press Prev Press Prev Press Prev Press Prev Press Prev Press ")
 		if len(data.RightLines) > maxLineCount {
 			data.RightLines =
 				data.RightLines[len(data.RightLines)-maxLineCount : len(data.RightLines)]
