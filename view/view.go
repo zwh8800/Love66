@@ -115,7 +115,7 @@ func drawRight() {
 	}
 }
 
-var loadingChar = []rune{'-', '\\', '|', '/'}
+var loadingChar = [...]rune{'-', '\\', '|', '/'}
 
 func drawSpinner() {
 	for i := 0; ; i++ {
@@ -134,6 +134,38 @@ func drawSpinner() {
 	}
 }
 
+var helpInfo = [...]string{
+	"◀",
+	"上一房间",
+	"▶",
+	"下一房间",
+	"ESC",
+	"退出",
+}
+
+func displayLength(str string) int {
+	len := 0
+	for _, r := range str {
+		if isNoneLatinChar(r) {
+			len += 2
+		} else {
+			len += 1
+		}
+	}
+	return len
+}
+
+func drawHelp() {
+	x := 0
+	y := h - 1
+	for i := 0; i < len(helpInfo); i += 2 {
+		tbPrint(x, y, w, termbox.ColorDefault, termbox.ColorDefault, helpInfo[i])
+		x += displayLength(helpInfo[i])
+		tbPrint(x, y, w, termbox.ColorBlack, termbox.ColorCyan, helpInfo[i+1])
+		x += displayLength(helpInfo[i+1])
+	}
+}
+
 func Update() {
 	termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
 	if data.Loading && !isLoading {
@@ -146,6 +178,7 @@ func Update() {
 	drawSplitter()
 	drawLeft()
 	drawRight()
+	drawHelp()
 	termbox.Flush()
 }
 
@@ -202,7 +235,7 @@ func MainLoop() {
 	}
 }
 
-func isChineseChar(r rune) bool {
+func isNoneLatinChar(r rune) bool {
 	if r > unicode.MaxLatin1 {
 		return true
 	} else {
@@ -215,7 +248,7 @@ func tbPrint(x, y, w int, fg, bg termbox.Attribute, msg string) int {
 	initX := x
 	for _, c := range msg {
 		termbox.SetCell(x, y, c, fg, bg)
-		if isChineseChar(c) {
+		if isNoneLatinChar(c) {
 			x += 2
 		} else {
 			x++

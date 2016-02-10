@@ -190,14 +190,14 @@ func getViewData(prevData *view.Data, newDanmuku *danmuku.Danmuku) *view.Data {
 	room := rooms[currentRoom]
 	onlineStr := ""
 	if room.Online() {
-		onlineStr = "[在线]"
+		onlineStr = "【在线】"
 	} else {
-		onlineStr = "[离线]"
+		onlineStr = "【离线】"
 	}
 	data := view.Data{
 		[]string{
-			"#" + strconv.Itoa(room.RoomId()),
 			onlineStr + room.Nickname(),
+			"#" + strconv.Itoa(room.RoomId()),
 			room.RoomName(),
 			room.GameName(),
 			//			strings.Replace(room.Details(), "\n", " ", -1),
