@@ -304,7 +304,7 @@ func (r *DanmukuRoom) keepAliveRoutine() {
 		})
 		if err := writeMessage(r.conn, keepAlive); err != nil {
 			log.Println("297:", err)
-			return
+			//return
 		}
 		time.Sleep(40 * time.Second)
 	}
