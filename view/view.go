@@ -4,6 +4,8 @@ import (
 	"time"
 	"unicode"
 
+	"sync"
+
 	"github.com/nsf/termbox-go"
 )
 
@@ -129,7 +131,9 @@ func drawSpinner() {
 
 		i %= len(loadingChar)
 		termbox.SetCell(w/2, h/2, loadingChar[i], termbox.ColorDefault|termbox.AttrBold, termbox.ColorDefault)
+		flushMutex.Lock()
 		termbox.Flush()
+		flushMutex.Unlock()
 		time.Sleep(200 * time.Millisecond)
 	}
 }
@@ -166,6 +170,8 @@ func drawHelp() {
 	}
 }
 
+var flushMutex sync.Mutex
+
 func Update() {
 	termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
 	if data.Loading && !isLoading {
@@ -179,7 +185,9 @@ func Update() {
 	drawLeft()
 	drawRight()
 	drawHelp()
+	flushMutex.Lock()
 	termbox.Flush()
+	flushMutex.Unlock()
 }
 
 func OnKeyPrev(h Handler) {
