@@ -246,24 +246,22 @@ func readMessage(conn net.Conn) (string, error) {
 		return "", err
 	}
 	if length != length2 {
-		log.Printf("243: length(%d) != length2(%d)\n", length, length2)
 		return "", fmt.Errorf("243: length(%d) != length2(%d)\n", length, length2)
 	}
 	if err := binary.Read(conn, binary.LittleEndian, &messageType); err != nil {
 		return "", err
 	}
 	if messageType != typeRecv {
-		log.Printf("249: messageData(%d) != typeRecv\n", messageType)
 		return "", fmt.Errorf("249: messageData(%d) != typeRecv\n", messageType)
 	}
 	messageData := make([]byte, length-8)
-	n, err := conn.Read(messageData)
-	if err != nil {
-		return "", err
-	}
-	if n != int(length-8) {
-		log.Printf("257: n(%d) != length - 8(%d)\n", n, length-8)
-		return "", fmt.Errorf("257: n(%d) != length - 8(%d)\n", n, length-8)
+
+	for i := 0; i < int(length-8); {
+		n, err := conn.Read(messageData[i:])
+		if err != nil {
+			return "", err
+		}
+		i += n
 	}
 
 	return string(messageData), nil
@@ -279,7 +277,6 @@ func (r *DanmukuRoom) readRoutine() {
 		message, err := readMessage(r.conn)
 		if err != nil {
 			log.Println("272:", err)
-			//return
 		}
 		msg := parseMessage(message)
 		if msg["type"] == "chatmessage" {
@@ -304,7 +301,6 @@ func (r *DanmukuRoom) keepAliveRoutine() {
 		})
 		if err := writeMessage(r.conn, keepAlive); err != nil {
 			log.Println("297:", err)
-			//return
 		}
 		time.Sleep(40 * time.Second)
 	}
