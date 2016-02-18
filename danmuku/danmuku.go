@@ -6,18 +6,16 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
-
-	"net/url"
-
-	"fmt"
 
 	"github.com/satori/go.uuid"
 )

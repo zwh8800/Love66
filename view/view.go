@@ -1,10 +1,9 @@
 package view
 
 import (
+	"sync"
 	"time"
 	"unicode"
-
-	"sync"
 
 	"github.com/nsf/termbox-go"
 )
