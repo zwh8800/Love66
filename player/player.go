@@ -45,6 +45,7 @@ type Player struct {
 	stoppedChannel   chan bool
 	playing          bool
 	loading          bool
+	closing          bool
 	liveStreamUrl    string
 	audioBuffer      *bytes.Buffer
 }
@@ -55,6 +56,7 @@ func NewPlayer(liveStreamUrl string) *Player {
 		make(chan string),
 		make(chan error),
 		make(chan bool),
+		false,
 		false,
 		false,
 		liveStreamUrl,
@@ -82,6 +84,7 @@ func (p *Player) dispatcher() {
 		case "started":
 			p.loading = false
 		case "stopped":
+			p.closing = false
 			p.playing = false
 			p.loading = false
 			p.stoppedChannel <- true
@@ -105,6 +108,7 @@ func (p *Player) Stop() {
 	if !p.playing {
 		return
 	}
+	p.closing = true
 	p.notifyM2SChannel <- "stop"
 	<-p.stoppedChannel
 }
@@ -197,6 +201,8 @@ func (p *Player) playRoutine() {
 		p.errorChannel <- err
 	}
 	defer sdl.CloseAudio()
+
+	registerInterruptCB(formatContext, p)
 
 	startedReported := false
 readPacketLoop:

@@ -1,10 +1,13 @@
 package player
 
-// #cgo pkg-config: libavutil
+// #cgo pkg-config: libavutil libavformat
 // #include <libavutil/error.h>
 // #include <libavutil/channel_layout.h>
 // #include <libswresample/swresample.h>
-//extern void fillAudio(void *userdata, uint8_t *stream, int len);
+// #include <libavformat/avformat.h>
+// extern void fillAudio(void *userdata, uint8_t *stream, int len);
+// extern int interruptCB(void *uData);
+// typedef int (*InterruptCB)(void *uData);
 import "C"
 import (
 	"bytes"
@@ -13,6 +16,7 @@ import (
 	"unsafe"
 
 	"github.com/giorgisio/goav/avcodec"
+	"github.com/giorgisio/goav/avformat"
 	"github.com/veandco/go-sdl2/sdl"
 )
 
@@ -68,4 +72,22 @@ func createAudioSpec(codecContext *avcodec.CodecContext, audioBuffer *bytes.Buff
 	spec.Callback = sdl.AudioCallback(C.fillAudio)
 	spec.UserData = unsafe.Pointer(audioBuffer)
 	return &spec
+}
+
+//export interruptCB
+func interruptCB(uData unsafe.Pointer) C.int {
+	player := (*Player)(uData)
+	if player.closing {
+		return 1
+	}
+	return 0
+}
+
+type FormatContext C.struct_AVFormatContext
+
+func registerInterruptCB(context *avformat.Context, player *Player) {
+	formatContext := (*FormatContext)(unsafe.Pointer(context))
+
+	formatContext.interrupt_callback.callback = C.InterruptCB(C.interruptCB)
+	formatContext.interrupt_callback.opaque = unsafe.Pointer(player)
 }
