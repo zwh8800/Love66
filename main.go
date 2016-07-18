@@ -37,10 +37,6 @@ func main() {
 	}
 	currentRoom = 0
 
-	if err := player.Init(); err != nil {
-		log.Panic(err)
-	}
-	defer player.DeInit()
 	mainPlayer = player.NewPlayer(rooms[currentRoom].LiveStreamUrl())
 
 	if err := view.Init(); err != nil {

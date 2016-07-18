@@ -26,7 +26,6 @@ func TestGetInfo(t *testing.T) {
 		t.Logf("\troom name: %s", room.RoomName())
 		t.Logf("\thost nickname: %s", room.Nickname())
 		t.Logf("\tgame name: %s", room.GameName())
-		t.Logf("\tdetail: %s", string([]rune(room.Details())[:10]))
 		t.Logf("\tlive stream url: %s", room.LiveStreamUrl())
 	}
 }

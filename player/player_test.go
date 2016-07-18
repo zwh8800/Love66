@@ -1,25 +1,12 @@
 package player
 
 import (
-	"log"
 	"testing"
 	"time"
 )
 
 func TestPlay(t *testing.T) {
-	if err := Init(); err != nil {
-		t.Error(err)
-	}
-	defer DeInit()
-
-	player := NewPlayer("/Users/zzz/1.mp4")
-	go func() {
-		err := <-player.ErrorChannel()
-		if err != nil {
-			log.Panic(err)
-			t.Error(err)
-		}
-	}()
+	player := NewPlayer("/Users/zzz/1.flac")
 	t.Log("start play")
 	player.Play()
 
@@ -32,7 +19,7 @@ func TestPlay(t *testing.T) {
 	t.Log("stop play")
 
 	t.Log("start play")
-	player.ChangeLiveStreamUrl("/Users/zzz/2.mp4")
+	player.ChangeLiveStreamUrl("/Users/zzz/2.flac")
 	player.Play()
 	for i := 0; i < 5; i++ {
 		t.Logf("play for %d seconds\n", i)
