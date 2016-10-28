@@ -11,9 +11,12 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"os/exec"
+	"os/signal"
 	"regexp"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -36,9 +39,9 @@ type DouyuLiveData struct {
 }
 
 func GetStreamUrl(roomId int) string {
-	resp, err := http.Get(fmt.Sprintf("http://m.douyu.com/html5/live?roomId=%d", roomId))
-	//resp, err := http.Get("http://m.douyu.com/html5/live?roomId=156277")
-	//resp, err := http.Get("http://m.douyu.com/html5/live?roomId=3258")
+	resp, err := http.Get(fmt.Sprintf("https://m.douyu.com/html5/live?roomId=%d", roomId))
+	//resp, err := http.Get("https://m.douyu.com/html5/live?roomId=156277")
+	//resp, err := http.Get("https://m.douyu.com/html5/live?roomId=3258")
 	if err != nil {
 		log.Println(err)
 		return ""
@@ -83,8 +86,13 @@ func JsonStringify(obj interface{}, indent bool) string {
 	}
 }
 
+var mplayerProcess *os.Process
+
 func OpenMPlayerWithUrl(url string) {
 	cmd := exec.Command("mplayer", "-vo", "null", "-cache", "20480", url)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+
+	mplayerProcess = cmd.Process
 
 	pipeReader, pipeWriter := io.Pipe()
 	cmd.Stdout = pipeWriter
@@ -219,6 +227,58 @@ func readMessage(conn net.Conn) (string, error) {
 	return string(messageData), nil
 }
 
+type GiftData struct {
+	Data struct {
+		Gift []struct {
+			Desc  string  `json:"desc"`
+			Gx    float64 `json:"gx"`
+			Himg  string  `json:"himg"`
+			ID    string  `json:"id"`
+			Intro string  `json:"intro"`
+			Mimg  string  `json:"mimg"`
+			Name  string  `json:"name"`
+			Pc    float64 `json:"pc"`
+			Type  string  `json:"type"`
+		} `json:"gift"`
+	} `json:"data"`
+	Error int `json:"error"`
+}
+
+var gifts = make(map[string]string)
+
+func getGiftList(roomId int) {
+
+	resp, err := http.Get(fmt.Sprintf("http://open.douyucdn.cn/api/RoomApi/room/%d", roomId))
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	defer resp.Body.Close()
+
+	data, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+	var giftData GiftData
+	if err := json.Unmarshal(data, &giftData); err != nil {
+		log.Println(err)
+		return
+	}
+
+	log.Println("giftData =", JsonStringify(giftData, true))
+
+	if giftData.Error != 0 {
+		log.Printf("giftData.error = %d\n", giftData.Error)
+		return
+	}
+
+	for _, gift := range giftData.Data.Gift {
+		gifts[gift.ID] = gift.Name
+	}
+}
+
 func danmukuReadAndPrint(conn net.Conn) {
 	msgStr, err := readMessage(conn)
 	if err != nil {
@@ -229,13 +289,21 @@ func danmukuReadAndPrint(conn net.Conn) {
 	switch message["type"] {
 	case "chatmsg":
 		log.Printf("%s(%s): %s", message["nn"], message["uid"], message["txt"])
+	case "dgb":
+		hits := message["hits"]
+		if hits == "" {
+			hits = "1"
+		}
+		log.Printf("%s(%s) 送出 %s (%s 连击)", message["nn"], message["uid"], gifts[message["gfid"]], hits)
 	default:
-		log.Printf("%#v", message)
+		// log.Printf("%#v", message)
 	}
 
 }
 
 func Danmuku(roomId int) {
+	getGiftList(roomId)
+
 	conn, err := net.Dial("tcp", OpenDouyuAddr)
 	if err != nil {
 		log.Println(err)
@@ -259,11 +327,28 @@ func main() {
 	log.SetFlags(log.Lshortfile | log.LstdFlags)
 
 	roomId := flag.Int("id", 156277, "room id")
+	onlyDanmu := flag.Bool("d", false, "only danmu")
 	flag.Parse()
+
+	go func() {
+		c := make(chan os.Signal)
+		signal.Notify(c, os.Interrupt, os.Kill)
+		<-c
+		if mplayerProcess != nil {
+			if err := syscall.Kill(-mplayerProcess.Pid, syscall.SIGKILL); err != nil {
+				log.Println("failed to kill: ", err)
+			}
+		}
+		os.Exit(0)
+	}()
 
 	go Danmuku(*roomId)
 
 	for {
+		if *onlyDanmu {
+			time.Sleep(1 * time.Minute)
+		}
+
 		url := GetStreamUrl(*roomId)
 		if url == "" {
 			time.Sleep(5 * time.Second)
