@@ -88,8 +88,13 @@ func JsonStringify(obj interface{}, indent bool) string {
 
 var mplayerProcess *os.Process
 
-func OpenMPlayerWithUrl(url string) {
-	cmd := exec.Command("mplayer", "-vo", "null", "-cache", "20480", url)
+func OpenMPlayerWithUrl(url string, watchVideo bool) {
+	args := make([]string, 0, 5)
+	if !watchVideo {
+		args = append(args, "-vo", "null")
+	}
+	args = append(args, "-cache", "20480", url)
+	cmd := exec.Command("mplayer", args...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 
 	mplayerProcess = cmd.Process
@@ -328,12 +333,14 @@ func main() {
 
 	roomId := flag.Int("id", 156277, "room id")
 	onlyDanmu := flag.Bool("d", false, "only danmu")
+	watchVideo := flag.Bool("v", false, "watch video")
 	flag.Parse()
 
 	go func() {
 		c := make(chan os.Signal)
 		signal.Notify(c, os.Interrupt, os.Kill)
 		<-c
+		log.Println("bye")
 		if mplayerProcess != nil {
 			if err := syscall.Kill(-mplayerProcess.Pid, syscall.SIGKILL); err != nil {
 				log.Println("failed to kill: ", err)
@@ -354,6 +361,6 @@ func main() {
 			time.Sleep(5 * time.Second)
 			continue
 		}
-		OpenMPlayerWithUrl(url)
+		OpenMPlayerWithUrl(url, *watchVideo)
 	}
 }
