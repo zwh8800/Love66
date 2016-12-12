@@ -293,7 +293,22 @@ func danmukuReadAndPrint(conn net.Conn) {
 
 	switch message["type"] {
 	case "chatmsg":
-		log.Printf("%s(%s): %s", message["nn"], message["uid"], message["txt"])
+		colorCode := ""
+		switch message["col"] {
+		case "1": // 红
+			colorCode = "\033[1;91m"
+		case "2": // 蓝
+			colorCode = "\033[1;94m"
+		case "3": // 绿
+			colorCode = "\033[1;92m"
+		case "4": // 黄
+			colorCode = "\033[1;93m"
+		case "5": // 紫
+			colorCode = "\033[1;38;5;129m"
+		case "6": // 粉
+			colorCode = "\033[1;38;5;213m"
+		}
+		log.Printf("%s(%s): %s%s\033[0m", message["nn"], message["uid"], colorCode, message["txt"])
 	case "dgb":
 		hits := message["hits"]
 		if hits == "" {
@@ -353,7 +368,9 @@ func main() {
 
 	for {
 		if *onlyDanmu {
-			time.Sleep(1 * time.Minute)
+			for {
+				time.Sleep(1 * time.Minute)
+			}
 		}
 
 		url := GetStreamUrl(*roomId)
