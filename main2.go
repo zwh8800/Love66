@@ -307,6 +307,8 @@ func danmukuReadAndPrint(conn net.Conn) {
 			colorCode = "\033[1;38;5;129m"
 		case "6": // 粉
 			colorCode = "\033[1;38;5;213m"
+		default:
+			colorCode = "\033[1m"
 		}
 		log.Printf("%s(%s): %s%s\033[0m", message["nn"], message["uid"], colorCode, message["txt"])
 	case "dgb":
@@ -357,6 +359,12 @@ func main() {
 		<-c
 		log.Println("bye")
 		if mplayerProcess != nil {
+			if err := syscall.Kill(-mplayerProcess.Pid, syscall.SIGKILL); err != nil {
+				log.Println("failed to kill: ", err)
+			}
+			if err := syscall.Kill(-mplayerProcess.Pid, syscall.SIGKILL); err != nil {
+				log.Println("failed to kill: ", err)
+			}
 			if err := syscall.Kill(-mplayerProcess.Pid, syscall.SIGKILL); err != nil {
 				log.Println("failed to kill: ", err)
 			}
