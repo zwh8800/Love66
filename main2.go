@@ -355,7 +355,7 @@ func danmukuReadAndPrint(conn net.Conn) {
 		if hits == "" {
 			hits = "1"
 		}
-		log.Printf("%s(%s) 送出 %s (%s 连击)", message["nn"], message["uid"], gifts[message["gfid"]], hits)
+		log.Printf("%s(%s) \033[90m送出 %s (%s 连击)\033[0m", message["nn"], message["uid"], gifts[message["gfid"]], hits)
 	default:
 		// log.Printf("%#v", message)
 	}
